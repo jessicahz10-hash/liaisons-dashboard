@@ -459,10 +459,19 @@ function parseEarned(rows, dept) {
     const r=rows[i];
     if (!r[1]?.trim()) continue;
     const stream=r[0]?.trim();
+    // Column A must be a valid stream — if it's empty or not a stream, skip
     if (!stream || !streams.includes(stream)) continue;
+    const proj = r[1].trim();
+    // Skip if project name is a number or starts with $ (summary rows)
+    if (/^\$/.test(proj)) continue;
+    if (/^[\d,. ]+$/.test(proj)) continue;
+    // Skip known summary keywords
+    const lower = proj.toLowerCase();
+    const skipWords = ['total','subtotal','revenue stream','signed','margin','goal','against','aov','trips','pending','art travel','travel','commissions'];
+    if (skipWords.some(k => lower === k)) continue;
     for (let m=0; m<12; m++) {
       const amt=cleanNum(r[m+2]);
-      if (amt>0) out.push({id:nextId++,dept,stream,project:r[1].trim(),status:'earned',amount:amt,month:m,pm:r[14]?.trim()||''});
+      if (amt>0) out.push({id:nextId++,dept,stream,project:proj,status:'earned',amount:amt,month:m,pm:r[14]?.trim()||''});
     }
   }
   return out;
