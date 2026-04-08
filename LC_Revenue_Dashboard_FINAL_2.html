@@ -282,6 +282,7 @@ if (sessionStorage.getItem('lc_auth') === '1') {
   <div class="nav-tab active" onclick="switchTab('overview')">Overview</div>
   <div class="nav-tab" onclick="switchTab('miami')">Miami / Events</div>
   <div class="nav-tab" onclick="switchTab('mexico')">Mexico City / Travel</div>
+  <div class="nav-tab" onclick="switchTab('historicals')">Historicals</div>
 </nav>
 
 <div class="last-updated">
@@ -433,6 +434,49 @@ if (sessionStorage.getItem('lc_auth') === '1') {
   </div>
 </div>
 
+
+<!-- HISTORICALS TAB -->
+<div class="tab-content" id="tab-historicals">
+  <div class="section-label">Historical Comparison</div>
+  <div class="section-title">2025 vs 2026 — Earned Revenue</div>
+
+  <!-- Combined -->
+  <div class="monthly-box" style="margin-bottom:32px;">
+    <div class="monthly-box-header">
+      <div class="section-label">Company Wide</div>
+      <div style="font-size:1rem;font-weight:400;">Monthly Earned · 2025 vs 2026</div>
+    </div>
+    <div class="monthly-scroll"><table class="monthly-table" id="hist-combined-table"></table></div>
+  </div>
+
+  <div class="two-col" style="margin-bottom:32px;">
+    <!-- Miami -->
+    <div class="monthly-box" style="margin-bottom:0;">
+      <div class="monthly-box-header">
+        <div class="section-label" style="color:var(--purple);">Miami / Events</div>
+        <div style="font-size:1rem;">Monthly Earned · 2025 vs 2026</div>
+      </div>
+      <div class="monthly-scroll"><table class="monthly-table" id="hist-miami-table"></table></div>
+    </div>
+    <!-- Mexico -->
+    <div class="monthly-box" style="margin-bottom:0;">
+      <div class="monthly-box-header">
+        <div class="section-label" style="color:var(--purple-mid);">Mexico City / Travel</div>
+        <div style="font-size:1rem;">Monthly Earned · 2025 vs 2026</div>
+      </div>
+      <div class="monthly-scroll"><table class="monthly-table" id="hist-mexico-table"></table></div>
+    </div>
+  </div>
+
+  <!-- Cumulative -->
+  <div class="monthly-box">
+    <div class="monthly-box-header">
+      <div class="section-label">Cumulative · Company Wide</div>
+      <div style="font-size:1rem;font-weight:400;">Running Total Earned · 2025 vs 2026 · % of Annual Goal</div>
+    </div>
+    <div class="monthly-scroll"><table class="monthly-table" id="hist-cumulative-table"></table></div>
+  </div>
+</div>
 </main>
 <footer class="site-footer">Liaisons Corporation &amp; Liaisons Travel · Revenue Dashboard 2026</footer>
 <div class="toast" id="toast"></div>
@@ -441,10 +485,12 @@ if (sessionStorage.getItem('lc_auth') === '1') {
 const SHEET_ID = '1-msqtpol0V7x6bJGCT0i7YCSuwwN6T7r';
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const MONTHS_FULL = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-const MIAMI_STREAMS = ['Luxury Events','Guest List','Owned Platforms','Shared Platforms','Commissions','YPO Events','YPO Travel','Chase Travel','Chase Paymaster'];
+const MIAMI_STREAMS = ['Luxury Events','Guest List','Owned Platforms','Shared Platforms','Commissions','YPO Events','YPO Travel','Chase Travel','Chase Paymaster','Sponsorships'];
 const MEXICO_STREAMS = ['Travel','Commissions','Art'];
 const GOALS = { miami:916500, mexico:906000 };
+const GOALS_2025 = { miami:950000, mexico:803000 };
 let entries = [];
+let entries2025 = [];
 let nextId = 1;
 
 // ── FETCH ────────────────────────────────────────────────
@@ -537,14 +583,17 @@ async function loadAllData() {
   setLoading(true,'Connecting to Google Sheets...');
   try {
     setLP(20,'Loading data...');
-    const [mxE,miE,mxS,miS,mxP,miP] = await Promise.all([
+    const [mxE,miE,mxS,miS,mxP,miP,mi25,mx25] = await Promise.all([
       fetchSheet('Mexico'), fetchSheet('Miami'),
       fetchSheet('Mexico Signed'), fetchSheet('Miami Signed'),
       fetchSheet('Mexico Projected').catch(()=>[]),
       fetchSheet('Miami Projected').catch(()=>[]),
+      fetchSheet('Miami 2025').catch(()=>[]),
+      fetchSheet('Mexico 2025').catch(()=>[]),
     ]);
     setLP(75,'Rendering...');
     entries = [...parseEarned(mxE,'mexico'),...parseEarned(miE,'miami'),...parseSigned(mxS,'mexico'),...parseSigned(miS,'miami'),...parseProjected(mxP,'mexico'),...parseProjected(miP,'miami')];
+    entries2025 = [...parseEarned(mi25,'miami'),...parseEarned(mx25,'mexico')];
     renderAll();
     document.getElementById('lastUpdated').textContent = 'Last refreshed: ' + new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}) + ' · ' + new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'});
     setLP(100,'');
@@ -747,8 +796,8 @@ function renderAll() {
   // Combined goal bars
   setBar('bar-earned-total',tE/tG*100); setBar('bar-signed-total',(tE+tS)/tG*100); setBar('bar-proj-total',(tE+tS+tP)/tG*100);
   setBarTooltip('bar-earned-total','Earned',tE,tG);
-  setBarTooltip('bar-signed-total','Earned + Signed',tE+tS,tG);
-  setBarTooltip('bar-proj-total','Earned + Signed + Projected',tE+tS+tP,tG);
+  setBarTooltip('bar-signed-total','Signed',tS,tG);
+  setBarTooltip('bar-proj-total','Projected',tP,tG);
   document.getElementById('pct-total').textContent = pct(tE+tS,tG);
   document.getElementById('overview-pct').textContent = pct(tE+tS,tG);
   document.getElementById('overview-goal-sub').textContent = fmtF(tE+tS)+' of '+fmtF(tG)+' · '+fmtF(tG-tE-tS)+' remaining';
@@ -756,15 +805,15 @@ function renderAll() {
 
   setBar('bar-earned-miami-ov',mE/mG*100); setBar('bar-signed-miami-ov',(mE+mS)/mG*100); setBar('bar-proj-miami-ov',(mE+mS+mP)/mG*100);
   setBarTooltip('bar-earned-miami-ov','Earned',mE,mG);
-  setBarTooltip('bar-signed-miami-ov','Earned + Signed',mE+mS,mG);
-  setBarTooltip('bar-proj-miami-ov','Earned + Signed + Projected',mE+mS+mP,mG);
+  setBarTooltip('bar-signed-miami-ov','Signed',mS,mG);
+  setBarTooltip('bar-proj-miami-ov','Projected',mP,mG);
   document.getElementById('pct-miami-ov').textContent = pct(mE+mS,mG);
   document.getElementById('miami-detail').textContent = fmtF(mE)+' earned · '+fmtF(mS)+' signed · goal '+fmtF(mG);
 
   setBar('bar-earned-mexico-ov',xE/xG*100); setBar('bar-signed-mexico-ov',(xE+xS)/xG*100); setBar('bar-proj-mexico-ov',(xE+xS+xP)/xG*100);
   setBarTooltip('bar-earned-mexico-ov','Earned',xE,xG);
-  setBarTooltip('bar-signed-mexico-ov','Earned + Signed',xE+xS,xG);
-  setBarTooltip('bar-proj-mexico-ov','Earned + Signed + Projected',xE+xS+xP,xG);
+  setBarTooltip('bar-signed-mexico-ov','Signed',xS,xG);
+  setBarTooltip('bar-proj-mexico-ov','Projected',xP,xG);
   document.getElementById('pct-mexico-ov').textContent = pct(xE+xS,xG);
   document.getElementById('mexico-detail').textContent = fmtF(xE)+' earned · '+fmtF(xS)+' signed · goal '+fmtF(xG);
 
@@ -797,8 +846,8 @@ function renderAll() {
   ]);
   setBar('bar-earned-miami2',mE/mG*100); setBar('bar-signed-miami2',(mE+mS)/mG*100); setBar('bar-proj-miami2',(mE+mS+mP)/mG*100);
   setBarTooltip('bar-earned-miami2','Earned',mE,mG);
-  setBarTooltip('bar-signed-miami2','Earned + Signed',mE+mS,mG);
-  setBarTooltip('bar-proj-miami2','Earned + Signed + Projected',mE+mS+mP,mG);
+  setBarTooltip('bar-signed-miami2','Signed',mS,mG);
+  setBarTooltip('bar-proj-miami2','Projected',mP,mG);
   document.getElementById('miami-pct-full').textContent=pct(mE+mS,mG);
   document.getElementById('miami-goal-sub').textContent=fmtF(mE+mS)+' earned + signed · '+fmtF(mG-mE-mS)+' remaining';
   document.getElementById('miami-streams-full').innerHTML=renderStreamTable(MIAMI_STREAMS,'miami');
@@ -814,19 +863,118 @@ function renderAll() {
   ]);
   setBar('bar-earned-mexico2',xE/xG*100); setBar('bar-signed-mexico2',(xE+xS)/xG*100); setBar('bar-proj-mexico2',(xE+xS+xP)/xG*100);
   setBarTooltip('bar-earned-mexico2','Earned',xE,xG);
-  setBarTooltip('bar-signed-mexico2','Earned + Signed',xE+xS,xG);
-  setBarTooltip('bar-proj-mexico2','Earned + Signed + Projected',xE+xS+xP,xG);
+  setBarTooltip('bar-signed-mexico2','Signed',xS,xG);
+  setBarTooltip('bar-proj-mexico2','Projected',xP,xG);
   document.getElementById('mexico-pct-full').textContent=pct(xE+xS,xG);
   document.getElementById('mexico-goal-sub').textContent=fmtF(xE+xS)+' earned + signed · '+fmtF(xG-xE-xS)+' remaining';
   document.getElementById('mexico-streams-full').innerHTML=renderStreamTable(MEXICO_STREAMS,'mexico');
   renderMetrics('mexico-metrics','mexico',xG);
   renderMonthlyTable('mexico-monthly-table','mexico',MEXICO_STREAMS);
 
+  renderHistoricals();
   document.getElementById('headerDate').innerHTML=new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})+'<br>'+new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
 }
 
+
+function sumE25(dept, month) {
+  return entries2025.filter(e=>(!dept||e.dept===dept)&&(month===undefined||e.month===month)).reduce((s,e)=>s+e.amount,0);
+}
+
+function renderHistoricals() {
+  const cm = new Date().getMonth();
+  const fmtChg = (v25, v26) => {
+    if (!v25 || !v26) return '';
+    const chg = ((v26-v25)/v25*100);
+    const sign = chg >= 0 ? '+' : '';
+    const color = chg >= 0 ? 'var(--earned)' : 'var(--red)';
+    return `<span style="color:${color};font-size:0.65rem;">${sign}${chg.toFixed(1)}%</span>`;
+  };
+
+  // Helper to build monthly comparison table
+  function buildMonthTable(dept) {
+    const goal25 = dept === 'miami' ? GOALS_2025.miami : (dept === 'mexico' ? GOALS_2025.mexico : GOALS_2025.miami + GOALS_2025.mexico);
+    const goal26 = dept === 'miami' ? GOALS.miami : (dept === 'mexico' ? GOALS.mexico : GOALS.miami + GOALS.mexico);
+    const months = MONTHS.slice(0, cm+1); // Only show months up to current
+    let th = `<thead><tr>
+      <th>Month</th>
+      <th style="color:#888;">2025 Earned</th><th style="color:#888;">% of Goal</th>
+      <th style="color:var(--purple);">2026 Earned</th><th style="color:var(--purple);">% of Goal</th>
+      <th>YoY Change</th>
+    </tr></thead>`;
+    let tb = '<tbody>';
+    for (let m=0; m<12; m++) {
+      const v25 = dept ? sumE25(dept, m) : sumE25('miami',m)+sumE25('mexico',m);
+      const v26 = dept ? sumE(dept,'earned') && entries.filter(e=>e.dept===dept&&e.status==='earned'&&e.month===m).reduce((s,e)=>s+e.amount,0) : sumM(null,'earned',m);
+      const p25 = goal25 ? (v25/goal25*100).toFixed(1)+'%' : '—';
+      const p26 = goal26 ? (v26/goal26*100).toFixed(1)+'%' : '—';
+      const isCur = m === cm;
+      tb += `<tr class="${isCur?'cur-month':''}">
+        <td style="font-family:'DM Sans',sans-serif;font-weight:500;">${MONTHS_FULL[m]}</td>
+        <td style="color:#888;">${fmt(v25)}</td>
+        <td style="color:#888;font-size:0.68rem;">${v25?p25:'—'}</td>
+        <td style="color:var(--purple);">${fmt(v26)}</td>
+        <td style="color:var(--purple);font-size:0.68rem;">${v26?p26:'—'}</td>
+        <td>${fmtChg(v25,v26)}</td>
+      </tr>`;
+    }
+    tb += '</tbody>';
+    // Totals
+    const tot25 = dept ? sumE25(dept) : sumE25('miami')+sumE25('mexico');
+    const tot26 = dept ? sumE(dept,'earned') : sumE(null,'earned');
+    const tp25 = goal25 ? (tot25/goal25*100).toFixed(1)+'%' : '—';
+    const tp26 = goal26 ? (tot26/goal26*100).toFixed(1)+'%' : '—';
+    tb += `<tfoot><tr class="total-row">
+      <td>YTD Total</td>
+      <td>${fmt(tot25)}</td><td style="font-size:0.68rem;">${tot25?tp25:'—'}</td>
+      <td style="color:var(--purple);">${fmt(tot26)}</td><td style="font-size:0.68rem;color:var(--purple);">${tot26?tp26:'—'}</td>
+      <td>${fmtChg(tot25,tot26)}</td>
+    </tr></tfoot>`;
+    return th+tb;
+  }
+
+  // Cumulative table
+  function buildCumulativeTable() {
+    const goal25 = GOALS_2025.miami + GOALS_2025.mexico;
+    const goal26 = GOALS.miami + GOALS.mexico;
+    let th = `<thead><tr>
+      <th>Through</th>
+      <th style="color:#888;">2025 Cumulative</th><th style="color:#888;">% of Goal</th>
+      <th style="color:var(--purple);">2026 Cumulative</th><th style="color:var(--purple);">% of Goal</th>
+      <th>YoY Change</th>
+    </tr></thead>`;
+    let tb = '<tbody>';
+    let cum25=0, cum26=0;
+    for (let m=0; m<12; m++) {
+      const v25 = sumE25('miami',m)+sumE25('mexico',m);
+      const v26 = sumM(null,'earned',m);
+      cum25+=v25; cum26+=v26;
+      const p25 = (cum25/goal25*100).toFixed(1)+'%';
+      const p26 = (cum26/goal26*100).toFixed(1)+'%';
+      const isCur = m === cm;
+      const chg = cum25 ? ((cum26-cum25)/cum25*100) : 0;
+      const sign = chg>=0?'+':'';
+      const color = chg>=0?'var(--earned)':'var(--red)';
+      tb += `<tr class="${isCur?'cur-month':''}">
+        <td style="font-family:'DM Sans',sans-serif;font-weight:500;">${MONTHS_FULL[m]}</td>
+        <td style="color:#888;">${fmtF(cum25)}</td>
+        <td style="color:#888;font-size:0.68rem;">${p25}</td>
+        <td style="color:var(--purple);">${fmtF(cum26)}</td>
+        <td style="color:var(--purple);font-size:0.68rem;">${p26}</td>
+        <td><span style="color:${color};font-size:0.65rem;">${cum25?sign+chg.toFixed(1)+'%':'—'}</span></td>
+      </tr>`;
+    }
+    tb += '</tbody>';
+    return th+tb;
+  }
+
+  document.getElementById('hist-combined-table').innerHTML = buildMonthTable(null);
+  document.getElementById('hist-miami-table').innerHTML = buildMonthTable('miami');
+  document.getElementById('hist-mexico-table').innerHTML = buildMonthTable('mexico');
+  document.getElementById('hist-cumulative-table').innerHTML = buildCumulativeTable();
+}
+
 function switchTab(name) {
-  document.querySelectorAll('.nav-tab').forEach((t,i)=>t.classList.toggle('active',['overview','miami','mexico'][i]===name));
+  document.querySelectorAll('.nav-tab').forEach((t,i)=>t.classList.toggle('active',['overview','miami','mexico','historicals'][i]===name));
   document.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('active'));
   document.getElementById('tab-'+name).classList.add('active');
 }
