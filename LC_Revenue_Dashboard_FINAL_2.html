@@ -440,41 +440,34 @@ if (sessionStorage.getItem('lc_auth') === '1') {
   <div class="section-label">Historical Comparison</div>
   <div class="section-title">2025 vs 2026 — Earned Revenue</div>
 
-  <!-- Combined -->
+  <!-- Charts -->
+  <div id="hist-charts" style="margin-bottom:32px;"></div>
+
+  <!-- Company Wide -->
   <div class="monthly-box" style="margin-bottom:32px;">
     <div class="monthly-box-header">
       <div class="section-label">Company Wide</div>
-      <div style="font-size:1rem;font-weight:400;">Monthly Earned · 2025 vs 2026</div>
+      <div style="font-size:1rem;font-weight:400;">2025 vs 2026 · Monthly & Cumulative · Click any number for project detail</div>
     </div>
     <div class="monthly-scroll"><table class="monthly-table" id="hist-combined-table"></table></div>
   </div>
 
+  <!-- Miami & Mexico side by side -->
   <div class="two-col" style="margin-bottom:32px;">
-    <!-- Miami -->
     <div class="monthly-box" style="margin-bottom:0;">
       <div class="monthly-box-header">
         <div class="section-label" style="color:var(--purple);">Miami / Events</div>
-        <div style="font-size:1rem;">Monthly Earned · 2025 vs 2026</div>
+        <div style="font-size:1rem;">2025 vs 2026 · Click any number for project detail</div>
       </div>
       <div class="monthly-scroll"><table class="monthly-table" id="hist-miami-table"></table></div>
     </div>
-    <!-- Mexico -->
     <div class="monthly-box" style="margin-bottom:0;">
       <div class="monthly-box-header">
         <div class="section-label" style="color:var(--purple-mid);">Mexico City / Travel</div>
-        <div style="font-size:1rem;">Monthly Earned · 2025 vs 2026</div>
+        <div style="font-size:1rem;">2025 vs 2026 · Click any number for project detail</div>
       </div>
       <div class="monthly-scroll"><table class="monthly-table" id="hist-mexico-table"></table></div>
     </div>
-  </div>
-
-  <!-- Cumulative -->
-  <div class="monthly-box">
-    <div class="monthly-box-header">
-      <div class="section-label">Cumulative · Company Wide</div>
-      <div style="font-size:1rem;font-weight:400;">Running Total Earned · 2025 vs 2026 · % of Annual Goal</div>
-    </div>
-    <div class="monthly-scroll"><table class="monthly-table" id="hist-cumulative-table"></table></div>
   </div>
 </div>
 </main>
@@ -877,100 +870,227 @@ function renderAll() {
 
 
 function sumE25(dept, month) {
-  return entries2025.filter(e=>(!dept||e.dept===dept)&&(month===undefined||e.month===month)).reduce((s,e)=>s+e.amount,0);
+  return entries2025.filter(e=>
+    (!dept||e.dept===dept) && (month===undefined||month===null||e.month===month)
+  ).reduce((s,e)=>s+e.amount,0);
+}
+
+function sumM26(dept, month) {
+  return entries.filter(e=>
+    (!dept||e.dept===dept) && e.status==='earned' && (month===undefined||month===null||e.month===month)
+  ).reduce((s,e)=>s+e.amount,0);
+}
+
+function showHistMonthDetail(year, dept, month, cumulative) {
+  const deptLabel = !dept ? 'Company Wide' : dept==='miami' ? 'Miami / Events' : 'Mexico City / Travel';
+  const src = year===2025 ? entries2025 : entries.filter(e=>e.status==='earned');
+  let rows;
+  if (cumulative) {
+    rows = src.filter(e=>(!dept||e.dept===dept)&&e.month<=month);
+  } else {
+    rows = src.filter(e=>(!dept||e.dept===dept)&&e.month===month);
+  }
+  const total = rows.reduce((s,e)=>s+e.amount,0);
+  const miamiRows = rows.filter(e=>e.dept==='miami').sort((a,b)=>a.month-b.month);
+  const mexicoRows = rows.filter(e=>e.dept==='mexico').sort((a,b)=>a.month-b.month);
+  const miamiTotal = miamiRows.reduce((s,e)=>s+e.amount,0);
+  const mexicoTotal = mexicoRows.reduce((s,e)=>s+e.amount,0);
+
+  const makeRows = (arr) => arr.length===0
+    ? '<tr><td colspan="4" style="color:#bbb;font-style:italic;padding:10px;">No entries</td></tr>'
+    : arr.map(e=>`<tr><td>${e.project}</td><td>${e.stream}</td><td>${MONTHS_FULL[e.month]}</td><td style="text-align:right;font-family:'DM Mono',monospace;">${fmtF(e.amount)}</td></tr>`).join('');
+
+  const body = `
+    <div class="modal-kpis" style="grid-template-columns:repeat(3,1fr);">
+      <div class="modal-kpi"><div class="modal-kpi-label">Total</div><div class="modal-kpi-value" style="color:var(--purple)">${fmtF(total)}</div></div>
+      <div class="modal-kpi"><div class="modal-kpi-label">Miami</div><div class="modal-kpi-value" style="color:var(--purple)">${fmtF(miamiTotal)}</div></div>
+      <div class="modal-kpi"><div class="modal-kpi-label">Mexico</div><div class="modal-kpi-value" style="color:var(--purple-mid)">${fmtF(mexicoTotal)}</div></div>
+    </div>
+    ${miamiRows.length>0?`<div class="modal-section-title" style="color:var(--purple);">Miami / Events</div>
+    <table class="modal-table"><thead><tr><th>Project</th><th>Stream</th><th>Month</th><th>Amount</th></tr></thead><tbody>${makeRows(miamiRows)}</tbody></table>`:''}
+    ${mexicoRows.length>0?`<div class="modal-section-title" style="color:var(--purple-mid);">Mexico City / Travel</div>
+    <table class="modal-table"><thead><tr><th>Project</th><th>Stream</th><th>Month</th><th>Amount</th></tr></thead><tbody>${makeRows(mexicoRows)}</tbody></table>`:''}
+  `;
+  const title = (cumulative ? 'Through ' : '') + MONTHS_FULL[month] + ' · ' + year;
+  openModal(title, deptLabel + ' · Earned breakdown', body);
 }
 
 function renderHistoricals() {
-  const cm = new Date().getMonth();
-  const fmtChg = (v25, v26) => {
-    if (!v25 || !v26) return '';
-    const chg = ((v26-v25)/v25*100);
-    const sign = chg >= 0 ? '+' : '';
-    const color = chg >= 0 ? 'var(--earned)' : 'var(--red)';
-    return `<span style="color:${color};font-size:0.65rem;">${sign}${chg.toFixed(1)}%</span>`;
+  function buildHistTable(dept) {
+    const goal25 = dept==='miami' ? GOALS_2025.miami : dept==='mexico' ? GOALS_2025.mexico : GOALS_2025.miami+GOALS_2025.mexico;
+    const goal26 = dept==='miami' ? GOALS.miami : dept==='mexico' ? GOALS.mexico : GOALS.miami+GOALS.mexico;
+    const monthGoal25 = goal25/12;
+    const monthGoal26 = goal26/12;
+
+    const v25 = MONTHS.map((_,m)=>sumE25(dept,m));
+    const v26 = MONTHS.map((_,m)=>sumM26(dept,m));
+    let cum25=0, cum26=0;
+    const c25=[], c26=[];
+    v25.forEach(v=>{cum25+=v; c25.push(cum25);});
+    v26.forEach(v=>{cum26+=v; c26.push(cum26);});
+
+    const th = `<thead><tr>
+      <th style="text-align:left;min-width:160px;">Metric</th>
+      ${MONTHS.map((m,i)=>`<th class="${i===new Date().getMonth()?'cur-month':''}">${m}</th>`).join('')}
+      <th>YTD</th>
+    </tr></thead>`;
+
+    const clickCell25 = (m,v,cum) => v ? `onclick="showHistMonthDetail(2025,'${dept||''}',${m},${cum})" style="cursor:pointer;color:#888;"` : `style="color:#888;"`;
+    const clickCell26 = (m,v,cum) => v ? `onclick="showHistMonthDetail(2026,'${dept||''}',${m},${cum})" style="cursor:pointer;color:var(--purple);"` : `style="color:var(--purple);"`;
+
+    const cm = new Date().getMonth();
+
+    // YoY cumulative comparison
+    const yoyColor = (m) => {
+      if(!c25[m]||!c26[m]) return '#888';
+      return c26[m]>=c25[m] ? 'var(--earned)' : 'var(--red)';
+    };
+    const yoyDollar = (m) => {
+      if(!c25[m]&&!c26[m]) return '—';
+      const diff = c26[m]-c25[m];
+      return (diff>=0?'+':'')+fmtF(Math.abs(diff)).replace('$',diff>=0?'+$':'-$');
+    };
+    const yoyPct = (m) => {
+      if(!c25[m]) return '—';
+      const chg = (c26[m]-c25[m])/c25[m]*100;
+      return (chg>=0?'+':'')+chg.toFixed(1)+'%';
+    };
+
+    const tot25 = v25.reduce((a,b)=>a+b,0);
+    const tot26 = v26.reduce((a,b)=>a+b,0);
+
+    const rows = [
+      // 2025 section header
+      {type:'section', label:'2025'},
+      {type:'data', label:'Monthly Earned',
+        cells: v25.map((v,m)=>`<td ${clickCell25(m,v,false)}>${fmt(v)}</td>`).join(''),
+        ytd: `<td style="color:#888;font-weight:600;">${fmt(tot25)}</td>`},
+      {type:'data', label:'Cumulative',
+        cells: c25.map((v,m)=>`<td ${clickCell25(m,v,true)}>${fmtF(v)}</td>`).join(''),
+        ytd: `<td style="color:#888;font-weight:600;">${fmtF(tot25)}</td>`},
+      {type:'data', label:'% of Monthly Goal',
+        cells: v25.map(v=>`<td style="color:#888;font-size:0.68rem;">${v?(v/monthGoal25*100).toFixed(1)+'%':'—'}</td>`).join(''),
+        ytd: `<td style="color:#888;font-size:0.68rem;">${tot25?(tot25/goal25*100).toFixed(1)+'%':'—'}</td>`},
+      {type:'data', label:'% of Annual Goal',
+        cells: c25.map(v=>`<td style="color:#888;font-size:0.68rem;">${v?(v/goal25*100).toFixed(1)+'%':'—'}</td>`).join(''),
+        ytd: `<td style="color:#888;font-size:0.68rem;">${tot25?(tot25/goal25*100).toFixed(1)+'%':'—'}</td>`},
+      // 2026 section header
+      {type:'section', label:'2026'},
+      {type:'data', label:'Monthly Earned',
+        cells: v26.map((v,m)=>`<td ${clickCell26(m,v,false)}>${fmt(v)}</td>`).join(''),
+        ytd: `<td style="color:var(--purple);font-weight:600;">${fmt(tot26)}</td>`},
+      {type:'data', label:'Cumulative',
+        cells: c26.map((v,m)=>`<td ${clickCell26(m,v,true)}>${fmtF(v)}</td>`).join(''),
+        ytd: `<td style="color:var(--purple);font-weight:600;">${fmtF(tot26)}</td>`},
+      {type:'data', label:'% of Monthly Goal',
+        cells: v26.map(v=>`<td style="color:var(--purple);font-size:0.68rem;">${v?(v/monthGoal26*100).toFixed(1)+'%':'—'}</td>`).join(''),
+        ytd: `<td style="color:var(--purple);font-size:0.68rem;">${tot26?(tot26/goal26*100).toFixed(1)+'%':'—'}</td>`},
+      {type:'data', label:'% of Annual Goal',
+        cells: c26.map(v=>`<td style="color:var(--purple);font-size:0.68rem;">${v?(v/goal26*100).toFixed(1)+'%':'—'}</td>`).join(''),
+        ytd: `<td style="color:var(--purple);font-size:0.68rem;">${tot26?(tot26/goal26*100).toFixed(1)+'%':'—'}</td>`},
+      // Comparison
+      {type:'section', label:'YoY Comparison (Cumulative)'},
+      {type:'data', label:'$ Difference',
+        cells: MONTHS.map((_,m)=>`<td style="color:${yoyColor(m)};font-weight:500;">${c25[m]||c26[m]?yoyDollar(m):'—'}</td>`).join(''),
+        ytd: `<td style="color:${yoyColor(11)};font-weight:600;">${yoyDollar(Math.min(cm,11))}</td>`},
+      {type:'data', label:'% Change',
+        cells: MONTHS.map((_,m)=>`<td style="color:${yoyColor(m)};font-size:0.68rem;">${c25[m]?yoyPct(m):'—'}</td>`).join(''),
+        ytd: `<td style="color:${yoyColor(Math.min(cm,11))};font-size:0.68rem;">${c25[cm]?yoyPct(cm):'—'}</td>`},
+    ];
+
+    const tb = '<tbody>' + rows.map(r => {
+      if (r.type==='section') return `<tr><td colspan="14" style="background:var(--purple-xlight);font-family:'DM Mono',monospace;font-size:0.6rem;letter-spacing:0.18em;text-transform:uppercase;color:var(--purple);padding:8px 14px;font-weight:600;">${r.label}</td></tr>`;
+      return `<tr><td style="font-family:'DM Sans',sans-serif;font-size:0.76rem;font-weight:500;padding-left:14px;">${r.label}</td>${r.cells}${r.ytd}</tr>`;
+    }).join('') + '</tbody>';
+
+    return th+tb;
+  }
+
+  document.getElementById('hist-combined-table').innerHTML = buildHistTable(null);
+  document.getElementById('hist-miami-table').innerHTML = buildHistTable('miami');
+  document.getElementById('hist-mexico-table').innerHTML = buildHistTable('mexico');
+
+  // Charts
+  renderHistCharts();
+}
+
+function renderHistCharts() {
+  // Monthly comparison chart - combined
+  const v25 = MONTHS.map((_,m)=>sumE25(null,m));
+  const v26 = MONTHS.map((_,m)=>sumM26(null,m));
+  let cum25=0,cum26=0;
+  const c25=v25.map(v=>{cum25+=v;return cum25;});
+  const c26=v26.map(v=>{cum26+=v;return cum26;});
+
+  const maxMonthly = Math.max(...v25,...v26,1);
+  const maxCumul = Math.max(...c25,...c26,1);
+
+  const barChart = (vals25, vals26, max, clickFn25, clickFn26) => {
+    return MONTHS.map((m,i)=>{
+      const h25 = vals25[i] ? (vals25[i]/max*100) : 0;
+      const h26 = vals26[i] ? (vals26[i]/max*100) : 0;
+      return `<div style="display:flex;flex-direction:column;align-items:center;flex:1;gap:3px;">
+        <div style="width:100%;display:flex;gap:2px;align-items:flex-end;height:80px;">
+          <div title="2025: ${fmtF(vals25[i])}" style="flex:1;height:${h25}%;background:#ddd;border-radius:1px 1px 0 0;cursor:${vals25[i]?'pointer':'default'};transition:opacity 0.2s;" onmouseenter="this.style.opacity='0.7'" onmouseleave="this.style.opacity='1'" ${vals25[i]?`onclick="${clickFn25(i)}"`:''} ></div>
+          <div title="2026: ${fmtF(vals26[i])}" style="flex:1;height:${h26}%;background:var(--purple);border-radius:1px 1px 0 0;cursor:${vals26[i]?'pointer':'default'};transition:opacity 0.2s;" onmouseenter="this.style.opacity='0.7'" onmouseleave="this.style.opacity='1'" ${vals26[i]?`onclick="${clickFn26(i)}"`:''} ></div>
+        </div>
+        <div style="font-family:'DM Mono',monospace;font-size:0.5rem;color:#bbb;text-transform:uppercase;">${m}</div>
+      </div>`;
+    }).join('');
   };
 
-  // Helper to build monthly comparison table
-  function buildMonthTable(dept) {
-    const goal25 = dept === 'miami' ? GOALS_2025.miami : (dept === 'mexico' ? GOALS_2025.mexico : GOALS_2025.miami + GOALS_2025.mexico);
-    const goal26 = dept === 'miami' ? GOALS.miami : (dept === 'mexico' ? GOALS.mexico : GOALS.miami + GOALS.mexico);
-    const months = MONTHS.slice(0, cm+1); // Only show months up to current
-    let th = `<thead><tr>
-      <th>Month</th>
-      <th style="color:#888;">2025 Earned</th><th style="color:#888;">% of Goal</th>
-      <th style="color:var(--purple);">2026 Earned</th><th style="color:var(--purple);">% of Goal</th>
-      <th>YoY Change</th>
-    </tr></thead>`;
-    let tb = '<tbody>';
-    for (let m=0; m<12; m++) {
-      const v25 = dept ? sumE25(dept, m) : sumE25('miami',m)+sumE25('mexico',m);
-      const v26 = dept ? sumE(dept,'earned') && entries.filter(e=>e.dept===dept&&e.status==='earned'&&e.month===m).reduce((s,e)=>s+e.amount,0) : sumM(null,'earned',m);
-      const p25 = goal25 ? (v25/goal25*100).toFixed(1)+'%' : '—';
-      const p26 = goal26 ? (v26/goal26*100).toFixed(1)+'%' : '—';
-      const isCur = m === cm;
-      tb += `<tr class="${isCur?'cur-month':''}">
-        <td style="font-family:'DM Sans',sans-serif;font-weight:500;">${MONTHS_FULL[m]}</td>
-        <td style="color:#888;">${fmt(v25)}</td>
-        <td style="color:#888;font-size:0.68rem;">${v25?p25:'—'}</td>
-        <td style="color:var(--purple);">${fmt(v26)}</td>
-        <td style="color:var(--purple);font-size:0.68rem;">${v26?p26:'—'}</td>
-        <td>${fmtChg(v25,v26)}</td>
-      </tr>`;
-    }
-    tb += '</tbody>';
-    // Totals
-    const tot25 = dept ? sumE25(dept) : sumE25('miami')+sumE25('mexico');
-    const tot26 = dept ? sumE(dept,'earned') : sumE(null,'earned');
-    const tp25 = goal25 ? (tot25/goal25*100).toFixed(1)+'%' : '—';
-    const tp26 = goal26 ? (tot26/goal26*100).toFixed(1)+'%' : '—';
-    tb += `<tfoot><tr class="total-row">
-      <td>YTD Total</td>
-      <td>${fmt(tot25)}</td><td style="font-size:0.68rem;">${tot25?tp25:'—'}</td>
-      <td style="color:var(--purple);">${fmt(tot26)}</td><td style="font-size:0.68rem;color:var(--purple);">${tot26?tp26:'—'}</td>
-      <td>${fmtChg(tot25,tot26)}</td>
-    </tr></tfoot>`;
-    return th+tb;
-  }
+  const lineChart = (vals25, vals26, max) => {
+    const w=800, h=120, pad=10;
+    const px = (i) => pad + i*(w-pad*2)/11;
+    const py = (v) => h - pad - (v/max*(h-pad*2));
+    const pts25 = vals25.map((v,i)=>`${px(i)},${py(v)}`).join(' ');
+    const pts26 = vals26.map((v,i)=>`${px(i)},${py(v)}`).join(' ');
+    return `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:auto;">
+      <polyline points="${pts25}" fill="none" stroke="#ddd" stroke-width="2" stroke-linejoin="round"/>
+      <polyline points="${pts26}" fill="none" stroke="var(--purple)" stroke-width="2.5" stroke-linejoin="round"/>
+      ${vals25.map((v,i)=>v?`<circle cx="${px(i)}" cy="${py(v)}" r="3" fill="#ddd"/>`:''). join('')}
+      ${vals26.map((v,i)=>v?`<circle cx="${px(i)}" cy="${py(v)}" r="3.5" fill="var(--purple)"/>`:''). join('')}
+    </svg>`;
+  };
 
-  // Cumulative table
-  function buildCumulativeTable() {
-    const goal25 = GOALS_2025.miami + GOALS_2025.mexico;
-    const goal26 = GOALS.miami + GOALS.mexico;
-    let th = `<thead><tr>
-      <th>Through</th>
-      <th style="color:#888;">2025 Cumulative</th><th style="color:#888;">% of Goal</th>
-      <th style="color:var(--purple);">2026 Cumulative</th><th style="color:var(--purple);">% of Goal</th>
-      <th>YoY Change</th>
-    </tr></thead>`;
-    let tb = '<tbody>';
-    let cum25=0, cum26=0;
-    for (let m=0; m<12; m++) {
-      const v25 = sumE25('miami',m)+sumE25('mexico',m);
-      const v26 = sumM(null,'earned',m);
-      cum25+=v25; cum26+=v26;
-      const p25 = (cum25/goal25*100).toFixed(1)+'%';
-      const p26 = (cum26/goal26*100).toFixed(1)+'%';
-      const isCur = m === cm;
-      const chg = cum25 ? ((cum26-cum25)/cum25*100) : 0;
-      const sign = chg>=0?'+':'';
-      const color = chg>=0?'var(--earned)':'var(--red)';
-      tb += `<tr class="${isCur?'cur-month':''}">
-        <td style="font-family:'DM Sans',sans-serif;font-weight:500;">${MONTHS_FULL[m]}</td>
-        <td style="color:#888;">${fmtF(cum25)}</td>
-        <td style="color:#888;font-size:0.68rem;">${p25}</td>
-        <td style="color:var(--purple);">${fmtF(cum26)}</td>
-        <td style="color:var(--purple);font-size:0.68rem;">${p26}</td>
-        <td><span style="color:${color};font-size:0.65rem;">${cum25?sign+chg.toFixed(1)+'%':'—'}</span></td>
-      </tr>`;
-    }
-    tb += '</tbody>';
-    return th+tb;
+  const chartContainer = document.getElementById('hist-charts');
+  if (chartContainer) {
+    chartContainer.innerHTML = `
+      <div class="two-col" style="gap:20px;">
+        <div class="card">
+          <div class="card-header" style="border-left:4px solid var(--purple);">
+            <div class="card-dept">Monthly Earned</div>
+            <div class="card-title">2025 vs 2026</div>
+          </div>
+          <div class="card-body">
+            <div style="display:flex;align-items:flex-end;gap:4px;padding:0 8px;">
+              ${barChart(v25,v26,maxMonthly,
+                (i)=>`showHistMonthDetail(2025,null,${i},false)`,
+                (i)=>`showHistMonthDetail(2026,null,${i},false)`
+              )}
+            </div>
+            <div style="display:flex;gap:16px;margin-top:12px;padding:0 8px;">
+              <div style="display:flex;align-items:center;gap:6px;font-size:0.68rem;color:#888;"><div style="width:10px;height:10px;background:#ddd;border-radius:1px;"></div>2025</div>
+              <div style="display:flex;align-items:center;gap:6px;font-size:0.68rem;color:var(--purple);"><div style="width:10px;height:10px;background:var(--purple);border-radius:1px;"></div>2026</div>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header" style="border-left:4px solid var(--purple);">
+            <div class="card-dept">Cumulative Earned</div>
+            <div class="card-title">2025 vs 2026 — Running Total</div>
+          </div>
+          <div class="card-body" style="padding-bottom:8px;">
+            ${lineChart(c25,c26,maxCumul)}
+            <div style="display:flex;gap:16px;margin-top:4px;">
+              <div style="display:flex;align-items:center;gap:6px;font-size:0.68rem;color:#888;"><div style="width:16px;height:2px;background:#ddd;"></div>2025</div>
+              <div style="display:flex;align-items:center;gap:6px;font-size:0.68rem;color:var(--purple);"><div style="width:16px;height:2.5px;background:var(--purple);"></div>2026</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
   }
-
-  document.getElementById('hist-combined-table').innerHTML = buildMonthTable(null);
-  document.getElementById('hist-miami-table').innerHTML = buildMonthTable('miami');
-  document.getElementById('hist-mexico-table').innerHTML = buildMonthTable('mexico');
-  document.getElementById('hist-cumulative-table').innerHTML = buildCumulativeTable();
 }
 
 function switchTab(name) {
