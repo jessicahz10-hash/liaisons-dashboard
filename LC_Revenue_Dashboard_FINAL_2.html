@@ -601,7 +601,26 @@ function showMonthDetail(dept, month, status) {
   openModal(MONTHS_FULL[month] + ' · ' + deptLabel, statusLabel + ' entries', body);
 }
 
-function showDeptMonthDetail(dept, month) { showMonthDetail(dept, month, null); }
+function showDeptMonthDetail(dept, month) {
+  if (month === null || month === undefined) {
+    // Show all entries for the department
+    const deptLabel = dept==='miami' ? 'Miami / Events' : 'Mexico City / Travel';
+    const rows = entries.filter(e => e.dept===dept && e.status==='earned');
+    const total = rows.reduce((s,e)=>s+e.amount,0);
+    const tableRows = rows.length===0 ? '<tr><td colspan="4" style="color:#bbb;font-style:italic;padding:12px 10px;">No entries</td></tr>' :
+      rows.sort((a,b)=>a.month-b.month).map(e=>`<tr><td>${e.project}</td><td>${e.stream}</td><td>${MONTHS_FULL[e.month]}</td><td style="text-align:right;font-family:'DM Mono',monospace;">${fmtF(e.amount)}</td></tr>`).join('');
+    const body = `
+      <div class="modal-kpis" style="grid-template-columns:1fr 1fr;">
+        <div class="modal-kpi"><div class="modal-kpi-label">Total Earned</div><div class="modal-kpi-value" style="color:var(--earned)">${fmtF(total)}</div></div>
+        <div class="modal-kpi"><div class="modal-kpi-label">Entries</div><div class="modal-kpi-value">${rows.length}</div></div>
+      </div>
+      <table class="modal-table"><thead><tr><th>Project / Client</th><th>Stream</th><th>Month</th><th>Amount</th></tr></thead><tbody>${tableRows}</tbody></table>
+    `;
+    openModal('All Earned · ' + deptLabel, 'Year to date', body);
+  } else {
+    showMonthDetail(dept, month, null);
+  }
+}
 
 // ── RENDER ────────────────────────────────────────────────
 function renderKPIs(id, cards) {
