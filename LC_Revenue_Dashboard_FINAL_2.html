@@ -54,6 +54,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
 .kpi-3{grid-template-columns:repeat(3,1fr);}
 .kpi-4{grid-template-columns:repeat(4,1fr);}
 .kpi-5{grid-template-columns:repeat(5,1fr);}
+.kpi-7{grid-template-columns:repeat(7,1fr);}
 .kpi-card{background:#fff;border:1px solid var(--border);border-radius:2px;padding:20px 22px;border-top:3px solid var(--border);}
 .kpi-card.earned{border-top-color:var(--earned);}
 .kpi-card.signed{border-top-color:var(--purple);}
@@ -176,12 +177,36 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
 .toast{position:fixed;bottom:24px;right:24px;background:var(--ink);color:#fff;font-family:'DM Mono',monospace;font-size:0.7rem;letter-spacing:0.1em;padding:11px 18px;border-radius:2px;border-left:3px solid var(--purple);opacity:0;transform:translateY(10px);transition:all 0.3s;pointer-events:none;z-index:9998;}
 .toast.show{opacity:1;transform:translateY(0);}
 
+/* TOOLTIP */
+.progress-bar { position: absolute; left: 0; top: 0; height: 100%; border-radius: 1px; transition: width 1s ease; cursor: pointer; }
+.progress-tooltip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--ink);
+  color: #fff;
+  font-family: 'DM Mono', monospace;
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  padding: 6px 10px;
+  border-radius: 2px;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s;
+  z-index: 100;
+  border-left: 3px solid var(--purple);
+}
+.progress-bar:hover .progress-tooltip { opacity: 1; }
+.progress-track { position: relative; }
+
 /* FOOTER */
 .site-footer{text-align:center;padding:22px;font-family:'DM Sans',sans-serif;font-size:0.62rem;color:#bbb;border-top:2px solid var(--purple);margin-top:60px;background:#fff;}
 
 @media(max-width:1100px){
   .main,.site-header,.nav-tabs,.last-updated{padding-left:20px;padding-right:20px;}
-  .kpi-5,.kpi-4{grid-template-columns:repeat(2,1fr);}
+  .kpi-7,.kpi-5,.kpi-4{grid-template-columns:repeat(2,1fr);}
   .two-col,.two-col-wide{grid-template-columns:1fr;}
   .modal{width:100%;}
 }
@@ -273,7 +298,7 @@ if (sessionStorage.getItem('lc_auth') === '1') {
   <div class="section-label">Year to Date · 2026</div>
   <div class="section-title">Company-Wide Performance</div>
 
-  <div class="kpi-grid kpi-5" id="overview-kpis"></div>
+  <div class="kpi-grid kpi-7" id="overview-kpis"></div>
 
   <!-- Split goal bars -->
   <div class="goal-box">
@@ -633,6 +658,18 @@ function renderKPIs(id, cards) {
 }
 
 const setBar = (id,p) => { const el=document.getElementById(id); if(el) el.style.width=Math.min(100,Math.max(0,p))+'%'; };
+function setBarTooltip(id, label, amount, goal) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const p = goal ? (amount/goal*100).toFixed(1) : '0.0';
+  // Remove existing tooltip
+  const existing = el.querySelector('.progress-tooltip');
+  if (existing) existing.remove();
+  const tip = document.createElement('div');
+  tip.className = 'progress-tooltip';
+  tip.textContent = label + ': ' + fmtF(amount) + ' · ' + p + '% of goal';
+  el.appendChild(tip);
+}
 
 function renderStreamTable(streams, dept) {
   const rows = streams.map(s => {
@@ -670,13 +707,19 @@ function renderMonthlyTable(id, dept, streams) {
 
 function renderMetrics(id, dept, goal) {
   const e=sumE(dept,'earned'),s=sumE(dept,'signed'),p=sumE(dept,'projected'),rem=goal-e-s;
-  document.getElementById(id).innerHTML=[
-    {label:'Earned YTD',val:fmtF(e),color:'var(--earned)'},
-    {label:'Signed Pipeline',val:fmtF(s),color:'var(--purple)'},
-    {label:'Projected',val:fmtF(p),color:'var(--purple-mid)'},
-    {label:'Remaining to Goal',val:rem>0?fmtF(rem):'✓ Goal Met',color:rem>0?'var(--red)':'var(--earned)'},
-    {label:'Goal Completion',val:pct(e+s,goal),color:'var(--ink)'},
-  ].map(it=>`<div class="metric-item"><div class="metric-label">${it.label}</div><div class="metric-value" style="color:${it.color}">${it.val}</div></div>`).join('');
+  const items = [
+    {label:'Earned YTD',val:fmtF(e),color:'var(--earned)',note:''},
+    {label:'Signed Pipeline',val:fmtF(s),color:'var(--purple)',note:''},
+    {label:'Goal Completion',val:pct(e+s,goal),color:'var(--ink)',note:'Earned + signed only · excludes projections'},
+    {label:'Remaining to Goal',val:rem>0?fmtF(rem):'✓ Goal Met',color:rem>0?'var(--red)':'var(--earned)',note:'Based on earned + signed'},
+    {label:'Projected',val:fmtF(p),color:'var(--purple-mid)',note:'Not included in goal completion'},
+  ];
+  document.getElementById(id).innerHTML = items.map(it=>`
+    <div class="metric-item">
+      <div class="metric-label">${it.label}</div>
+      <div class="metric-value" style="color:${it.color}">${it.val}</div>
+      ${it.note ? `<div style="font-family:'DM Mono',monospace;font-size:0.55rem;color:#bbb;letter-spacing:0.08em;margin-top:3px;">${it.note}</div>` : ''}
+    </div>`).join('');
 }
 
 function renderAll() {
@@ -690,22 +733,33 @@ function renderAll() {
     {label:'Total Earned',value:fmtF(tE),cls:'earned',sub:pct(tE,tG)+' of combined goal'},
     {label:'Miami Earned',value:fmtF(mE),cls:'earned',sub:pct(mE,mG)+' of Miami goal'},
     {label:'Mexico Earned',value:fmtF(xE),cls:'earned',sub:pct(xE,xG)+' of Mexico goal'},
-    {label:'Total Signed',value:fmtF(tS),cls:'signed',sub:'Pipeline secured'},
-    {label:'Signed & Earned',value:fmtF(tE+tS),cls:'total',sub:pct(tE+tS,tG)+' of goal'},
+    {label:'Total Signed',value:fmtF(tS),cls:'signed',sub:pct(tS,tG)+' of combined goal'},
+    {label:'Miami Signed',value:fmtF(mS),cls:'signed',sub:pct(mS,mG)+' of Miami goal'},
+    {label:'Mexico Signed',value:fmtF(xS),cls:'signed',sub:pct(xS,xG)+' of Mexico goal'},
+    {label:'Signed & Earned',value:fmtF(tE+tS),cls:'total',sub:pct(tE+tS,tG)+' of combined goal'},
   ]);
 
   // Combined goal bars
   setBar('bar-earned-total',tE/tG*100); setBar('bar-signed-total',(tE+tS)/tG*100); setBar('bar-proj-total',(tE+tS+tP)/tG*100);
+  setBarTooltip('bar-earned-total','Earned',tE,tG);
+  setBarTooltip('bar-signed-total','Earned + Signed',tE+tS,tG);
+  setBarTooltip('bar-proj-total','Earned + Signed + Projected',tE+tS+tP,tG);
   document.getElementById('pct-total').textContent = pct(tE+tS,tG);
   document.getElementById('overview-pct').textContent = pct(tE+tS,tG);
   document.getElementById('overview-goal-sub').textContent = fmtF(tE+tS)+' of '+fmtF(tG)+' · '+fmtF(tG-tE-tS)+' remaining';
   document.getElementById('combined-detail').textContent = fmtF(tE)+' earned · '+fmtF(tS)+' signed · goal '+fmtF(tG);
 
   setBar('bar-earned-miami-ov',mE/mG*100); setBar('bar-signed-miami-ov',(mE+mS)/mG*100); setBar('bar-proj-miami-ov',(mE+mS+mP)/mG*100);
+  setBarTooltip('bar-earned-miami-ov','Earned',mE,mG);
+  setBarTooltip('bar-signed-miami-ov','Earned + Signed',mE+mS,mG);
+  setBarTooltip('bar-proj-miami-ov','Earned + Signed + Projected',mE+mS+mP,mG);
   document.getElementById('pct-miami-ov').textContent = pct(mE+mS,mG);
   document.getElementById('miami-detail').textContent = fmtF(mE)+' earned · '+fmtF(mS)+' signed · goal '+fmtF(mG);
 
   setBar('bar-earned-mexico-ov',xE/xG*100); setBar('bar-signed-mexico-ov',(xE+xS)/xG*100); setBar('bar-proj-mexico-ov',(xE+xS+xP)/xG*100);
+  setBarTooltip('bar-earned-mexico-ov','Earned',xE,xG);
+  setBarTooltip('bar-signed-mexico-ov','Earned + Signed',xE+xS,xG);
+  setBarTooltip('bar-proj-mexico-ov','Earned + Signed + Projected',xE+xS+xP,xG);
   document.getElementById('pct-mexico-ov').textContent = pct(xE+xS,xG);
   document.getElementById('mexico-detail').textContent = fmtF(xE)+' earned · '+fmtF(xS)+' signed · goal '+fmtF(xG);
 
@@ -737,6 +791,9 @@ function renderAll() {
     {label:'Annual Goal',value:fmtF(mG),sub:fmtF(mG-mE-mS)+' remaining'},
   ]);
   setBar('bar-earned-miami2',mE/mG*100); setBar('bar-signed-miami2',(mE+mS)/mG*100); setBar('bar-proj-miami2',(mE+mS+mP)/mG*100);
+  setBarTooltip('bar-earned-miami2','Earned',mE,mG);
+  setBarTooltip('bar-signed-miami2','Earned + Signed',mE+mS,mG);
+  setBarTooltip('bar-proj-miami2','Earned + Signed + Projected',mE+mS+mP,mG);
   document.getElementById('miami-pct-full').textContent=pct(mE+mS,mG);
   document.getElementById('miami-goal-sub').textContent=fmtF(mE+mS)+' earned + signed · '+fmtF(mG-mE-mS)+' remaining';
   document.getElementById('miami-streams-full').innerHTML=renderStreamTable(MIAMI_STREAMS,'miami');
@@ -751,6 +808,9 @@ function renderAll() {
     {label:'Annual Goal',value:fmtF(xG),sub:fmtF(xG-xE-xS)+' remaining'},
   ]);
   setBar('bar-earned-mexico2',xE/xG*100); setBar('bar-signed-mexico2',(xE+xS)/xG*100); setBar('bar-proj-mexico2',(xE+xS+xP)/xG*100);
+  setBarTooltip('bar-earned-mexico2','Earned',xE,xG);
+  setBarTooltip('bar-signed-mexico2','Earned + Signed',xE+xS,xG);
+  setBarTooltip('bar-proj-mexico2','Earned + Signed + Projected',xE+xS+xP,xG);
   document.getElementById('mexico-pct-full').textContent=pct(xE+xS,xG);
   document.getElementById('mexico-goal-sub').textContent=fmtF(xE+xS)+' earned + signed · '+fmtF(xG-xE-xS)+' remaining';
   document.getElementById('mexico-streams-full').innerHTML=renderStreamTable(MEXICO_STREAMS,'mexico');
