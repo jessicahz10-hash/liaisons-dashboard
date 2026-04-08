@@ -633,7 +633,7 @@ function renderStreamTable(streams,dept) {
 
 function renderMonthlyTable(id,dept,streams) {
   const cm=new Date().getMonth();
-  let th=`<thead><tr><th>Stream</th>${MONTHS.map((m,i)=>`<th class="${i===cm?'cur-month':''}">${m}</th>`).join('')}<th>YTD</th></tr></thead>`;
+  let th=`<thead><tr><th>Stream</th>${MONTHS.map((m,i)=>`<th class="${i===cm?'cur-month':''}">${m}</th>`).join('')}</tr></thead>`;
   let tb='<tbody>';
   streams.forEach(s=>{
     const vals=MONTHS.map((_,i)=>sumSM(dept,s,'earned',i)),ytd=vals.reduce((a,b)=>a+b,0);
@@ -725,23 +725,23 @@ function buildHistSection(dept,barId,lineId,tableId) {
     const col=year===2025?'color:#888;':'color:var(--purple);';
     return v?`style="${col}cursor:pointer;" onclick="showHistDetail(${year},'${dept||''}',${m},${cum})"`:` style="${col}"`;
   };
-  const th=`<thead><tr><th style="text-align:left;min-width:200px;">Metric</th>${MONTHS.map((m,i)=>`<th class="${i===cm?'cur-month':''}">${m}</th>`).join('')}<th>YTD</th></tr></thead>`;
+  const th=`<thead><tr><th style="text-align:left;min-width:200px;">Metric</th>${MONTHS.map((m,i)=>`<th class="${i===cm?'cur-month':''}">${m}</th>`).join('')}</tr></thead>`;
   const rows=[
     {type:'section',label:'2025 · Goal $'+Math.round(g25/1000)+'k'},
-    {label:'Monthly Earned',cells:v25.map((v,m)=>`<td ${cc(2025,m,false)}>${fmt(v)}</td>`).join(''),ytd:`<td style="color:#888;font-weight:600;">${fmt(tot25)}</td>`},
-    {label:'Cumulative',cells:c25.map((v,m)=>`<td ${cc(2025,m,true)}>${v?fmtF(v):'—'}</td>`).join(''),ytd:`<td style="color:#888;font-weight:600;">${fmtF(tot25)}</td>`},
-    {label:'Monthly % of Annual Goal',cells:mp25.map(p=>`<td style="color:#aaa;font-size:0.65rem;">${p?p.toFixed(1)+'%':'—'}</td>`).join(''),ytd:`<td style="color:#aaa;font-size:0.65rem;">${tot25?(tot25/g25*100).toFixed(1)+'%':'—'}</td>`},
-    {label:'Cumulative % of Annual Goal',cells:cp25.map(p=>`<td style="color:#aaa;font-size:0.65rem;">${p?p.toFixed(1)+'%':'—'}</td>`).join(''),ytd:`<td style="color:#aaa;font-size:0.65rem;">${tot25?(tot25/g25*100).toFixed(1)+'%':'—'}</td>`},
+    {label:'Monthly Earned',cells:v25.map((v,m)=>`<td ${cc(2025,m,false)}>${fmt(v)}</td>`).join(''),ytd:`<td style="color:#888;font-weight:600;">${fmt(c25[cm])}</td>`},
+    {label:'Cumulative',cells:c25.map((v,m)=>`<td ${cc(2025,m,true)}>${v?fmtF(v):'—'}</td>`).join(''),ytd:`<td style="color:#888;font-weight:600;">${fmtF(c25[cm])}</td>`},
+    {label:'Monthly % of Annual Goal',cells:mp25.map(p=>`<td style="color:#aaa;font-size:0.65rem;">${p?p.toFixed(1)+'%':'—'}</td>`).join(''),ytd:`<td style="color:#aaa;font-size:0.65rem;">${c25[cm]?(c25[cm]/g25*100).toFixed(1)+'%':'—'}</td>`},
+    {label:'Cumulative % of Annual Goal',cells:cp25.map(p=>`<td style="color:#aaa;font-size:0.65rem;">${p?p.toFixed(1)+'%':'—'}</td>`).join(''),ytd:`<td style="color:#aaa;font-size:0.65rem;">${cp25[cm]?cp25[cm].toFixed(1)+'%':'—'}</td>`},
     {type:'section',label:'2026 · Goal $'+Math.round(g26/1000)+'k'},
-    {label:'Monthly Earned',cells:v26.map((v,m)=>`<td ${cc(2026,m,false)}>${fmt(v)}</td>`).join(''),ytd:`<td style="color:var(--purple);font-weight:600;">${fmt(tot26)}</td>`},
-    {label:'Cumulative',cells:c26.map((v,m)=>`<td ${cc(2026,m,true)}>${v?fmtF(v):'—'}</td>`).join(''),ytd:`<td style="color:var(--purple);font-weight:600;">${fmtF(tot26)}</td>`},
-    {label:'Monthly % of Annual Goal',cells:mp26.map(p=>`<td style="color:var(--purple);font-size:0.65rem;">${p?p.toFixed(1)+'%':'—'}</td>`).join(''),ytd:`<td style="color:var(--purple);font-size:0.65rem;">${tot26?(tot26/g26*100).toFixed(1)+'%':'—'}</td>`},
-    {label:'Cumulative % of Annual Goal',cells:cp26.map(p=>`<td style="color:var(--purple);font-size:0.65rem;">${p?p.toFixed(1)+'%':'—'}</td>`).join(''),ytd:`<td style="color:var(--purple);font-size:0.65rem;">${tot26?(tot26/g26*100).toFixed(1)+'%':'—'}</td>`},
-    {type:'section',label:'YoY Comparison (Cumulative)'},
-    {label:'$ Difference',cells:MONTHS.map((_,m)=>{const y=yoyCum(m);return`<td style="color:${y.color};font-weight:500;">${y.val}</td>`;}).join(''),ytd:`<td style="color:${yoyCum(cm).color};font-weight:600;">${yoyCum(cm).val}</td>`},
+    {label:'Monthly Earned',cells:v26.map((v,m)=>`<td ${cc(2026,m,false)}>${fmt(v)}</td>`).join(''),ytd:`<td style="color:var(--purple);font-weight:600;">${fmt(c26[cm])}</td>`},
+    {label:'Cumulative',cells:c26.map((v,m)=>`<td ${cc(2026,m,true)}>${v?fmtF(v):'—'}</td>`).join(''),ytd:`<td style="color:var(--purple);font-weight:600;">${fmtF(c26[cm])}</td>`},
+    {label:'Monthly % of Annual Goal',cells:mp26.map(p=>`<td style="color:var(--purple);font-size:0.65rem;">${p?p.toFixed(1)+'%':'—'}</td>`).join(''),ytd:`<td style="color:var(--purple);font-size:0.65rem;">${c26[cm]?(c26[cm]/g26*100).toFixed(1)+'%':'—'}</td>`},
+    {label:'Cumulative % of Annual Goal',cells:cp26.map(p=>`<td style="color:var(--purple);font-size:0.65rem;">${p?p.toFixed(1)+'%':'—'}</td>`).join(''),ytd:`<td style="color:var(--purple);font-size:0.65rem;">${cp26[cm]?cp26[cm].toFixed(1)+'%':'—'}</td>`},
+    {type:'section',label:'YoY Comparison · Through '+MF[cm]},
+    {label:'$ Difference (Cumulative)',cells:MONTHS.map((_,m)=>{const y=yoyCum(m);return`<td style="color:${y.color};font-weight:500;">${y.val}</td>`;}).join(''),ytd:`<td style="color:${yoyCum(cm).color};font-weight:600;">${yoyCum(cm).val}</td>`},
     {label:'Δ Percentage Points vs Goal',cells:MONTHS.map((_,m)=>{const y=yoyPP(m);return`<td style="color:${y.color};font-size:0.65rem;">${y.val}</td>`;}).join(''),ytd:`<td style="color:${yoyPP(cm).color};font-size:0.65rem;">${yoyPP(cm).val}</td>`},
   ];
-  const tb='<tbody>'+rows.map(r=>r.type==='section'?`<tr><td colspan="14" class="hist-row-header">${r.label}</td></tr>`:`<tr><td style="font-size:0.74rem;font-weight:500;padding-left:14px;">${r.label}</td>${r.cells}${r.ytd}</tr>`).join('')+'</tbody>';
+  const tb='<tbody>'+rows.map(r=>r.type==='section'?`<tr><td colspan="13" class="hist-row-header">${r.label}</td></tr>`:`<tr><td style="font-size:0.74rem;font-weight:500;padding-left:14px;">${r.label}</td>${r.cells}</tr>`).join('')+'</tbody>';
   document.getElementById(tableId).innerHTML=th+tb;
 }
 
@@ -789,7 +789,7 @@ function renderAll() {
   document.getElementById('mx-stream-ov').innerHTML=renderStreamTable(MX_STREAMS,'mexico');
 
   // Overview monthly
-  const mH=`<thead><tr><th>Department</th>${MONTHS.map((m,i)=>`<th class="${i===cm?'cur-month':''}">${m}</th>`).join('')}<th>YTD</th></tr></thead>`;
+  const mH=`<thead><tr><th>Department</th>${MONTHS.map((m,i)=>`<th class="${i===cm?'cur-month':''}">${m}</th>`).join('')}</tr></thead>`;
   let mB='<tbody>';
   [['miami','Miami / Events','dept-miami'],['mexico','Mexico City / Travel','dept-mexico']].forEach(([dept,lbl,cls])=>{
     const vals=MONTHS.map((_,i)=>sumM(dept,'earned',i)),ytd=vals.reduce((a,b)=>a+b,0);
