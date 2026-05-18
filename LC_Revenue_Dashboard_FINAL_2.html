@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Liaisons — Revenue Dashboard 2026</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -317,7 +318,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
   <div class="section-title">Mexico Revenue Tracker 2026</div>
   <div class="kpi-grid kpi-4" id="mx-kpis"></div>
   <div class="goal-box">
-    <div class="goal-header"><div><div class="goal-label">Annual Goal — $906,000</div><div style="font-size:0.7rem;color:#aaa;margin-top:2px;" id="mx-goal-sub"></div></div><div class="goal-pct" id="mx-pct"></div></div>
+    <div class="goal-header"><div><div class="goal-label">Annual Goal — $907,000</div><div style="font-size:0.7rem;color:#aaa;margin-top:2px;" id="mx-goal-sub"></div></div><div class="goal-pct" id="mx-pct"></div></div>
     <div class="progress-track tall" style="margin-bottom:10px;"><div class="progress-bar p-projected" id="b-proj-mx2"></div><div class="progress-bar p-signed" id="b-signed-mx2"></div><div class="progress-bar p-earned" id="b-earned-mx2"></div></div>
     <div class="legend"><div class="legend-item"><div class="legend-dot" style="background:var(--earned)"></div>Earned</div><div class="legend-item"><div class="legend-dot" style="background:var(--purple)"></div>Signed</div><div class="legend-item"><div class="legend-dot" style="background:#b09ad0"></div>Projected</div></div>
   </div>
@@ -404,21 +405,35 @@ body{font-family:'DM Sans',sans-serif;background:var(--paper);color:var(--ink);m
 
 <script>
 // ── CONFIG ───────────────────────────────────────────────
-const SHEET_ID = '1-msqtpol0V7x6bJGCT0i7YCSuwwN6T7r';
+// Data source: SharePoint
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const MF = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 const MI_STREAMS = ['Luxury Events','Guest List','Owned Platforms','Shared Platforms','Commissions','YPO Events','YPO Travel','Chase Travel','Chase Paymaster','Sponsorships'];
 const MX_STREAMS = ['Travel','Commissions','Art'];
-const GOALS = {miami:916500, mexico:906000};
+const GOALS = {miami:916500, mexico:907000};
 const GOALS25 = {miami:950000, mexico:803000};
 let entries = [], entries25 = [], nextId = 1;
 
 // ── FETCH ────────────────────────────────────────────────
+const SHAREPOINT_URL = 'https://liaisonscorp.sharepoint.com/:x:/s/Files/IQDMxUXrxr1SRrYh_0xPR9SbARk2fwdv4e9vDTxjq0EXGYA?e=4j56e4';
+
 async function fetchSheet(name) {
-  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(name)}`;
-  const r = await fetch(url);
-  if (!r.ok) throw new Error('Failed: '+name);
-  return parseCSV(await r.text());
+  // Convert SharePoint share URL to direct download URL
+  const downloadUrl = SHAREPOINT_URL.replace('/:x:/s/', '/:x:/s/').replace('?e=', '?download=1&e=');
+  const r = await fetch(downloadUrl);
+  if (!r.ok) throw new Error('Failed to fetch SharePoint file');
+  const arrayBuffer = await r.arrayBuffer();
+  return parseExcelSheet(arrayBuffer, name);
+}
+
+async function parseExcelSheet(buffer, sheetName) {
+  // Use SheetJS to parse Excel
+  const data = new Uint8Array(buffer);
+  const workbook = XLSX.read(data, {type: 'array'});
+  const sheet = workbook.Sheets[sheetName];
+  if (!sheet) return [];
+  const rows = XLSX.utils.sheet_to_json(sheet, {header:1, defval:''});
+  return rows.map(r => r.map(c => c === null || c === undefined ? '' : String(c)));
 }
 
 function parseCSV(text) {
@@ -466,16 +481,28 @@ function parseEarned(rows, dept) {
 
 function parseSigned(rows, dept) {
   const streams = dept==='miami' ? MI_STREAMS : MX_STREAMS;
-  const map={'Art Travel':'Art','Events':'Luxury Events','Hired Platform':'Shared Platforms'};
+  const map={'Art Travel':'Art','Events':'Luxury Events','Hired Platform':'Shared Platforms','Sponsorship':'Sponsorships'};
   const out=[];
+  // Detect column offset - check if col2 looks like a month amount or a total
+  // Some sheets: stream, project, total, jan, feb... (offset 3)
+  // Some sheets: stream, project, jan, feb... (offset 2)
+  const offset = 3; // standard
   for (let i=1;i<rows.length;i++) {
     const r=rows[i];
     if (!r[1]?.trim()) continue;
     let stream=map[r[0]?.trim()]||r[0]?.trim();
     if (!stream||!streams.includes(stream)) continue;
+    // Try offset 3 first, then 2 if no amounts found
+    let found = false;
     for (let m=0;m<12;m++) {
       const amt=cn(r[m+3]);
-      if (amt>0) out.push({id:nextId++,dept,stream,project:r[1].trim(),status:'signed',amount:amt,month:m,pm:''});
+      if (amt>0) { out.push({id:nextId++,dept,stream,project:r[1].trim(),status:'signed',amount:amt,month:m,pm:''}); found=true; }
+    }
+    if (!found) {
+      for (let m=0;m<12;m++) {
+        const amt=cn(r[m+2]);
+        if (amt>0) out.push({id:nextId++,dept,stream,project:r[1].trim(),status:'signed',amount:amt,month:m,pm:''});
+      }
     }
   }
   return out;
